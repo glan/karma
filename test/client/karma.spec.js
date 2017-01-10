@@ -1,302 +1,372 @@
-var Karma  = require('../../client/karma');
-var MockSocket = require('./mocks').Socket;
+// shim all the things
+require('core-js/es5')
+global.JSON = require('json3')
+var sinon = require('sinon')
+var assert = require('assert')
 
+var ClientKarma = require('../../client/karma')
+var ContextKarma = require('../../context/karma')
+var MockSocket = require('./mocks').Socket
 
-describe('Karma', function() {
-  var socket, k, spyStart, windowNavigator, windowLocation, spyWindowOpener;
+describe('Karma', function () {
+  var socket, k, ck, windowNavigator, windowLocation, windowStub, startSpy, iframe, clientWindow
 
-  var setTransportTo = function(transportName) {
-    socket._setTransportNameTo(transportName);
-    socket.emit('connect');
-  };
+  var setTransportTo = function (transportName) {
+    socket._setTransportNameTo(transportName)
+    socket.emit('connect')
+  }
 
+  beforeEach(function () {
+    socket = new MockSocket()
+    iframe = {}
+    windowNavigator = {}
+    windowLocation = {search: ''}
+    windowStub = sinon.stub().returns({})
 
-  beforeEach(function() {
-    socket = new MockSocket();
-    windowNavigator = {};
-    windowLocation = {search: ''};
-    spyWindowOpener = jasmine.createSpy('window.open').andReturn({});
-    k = new Karma(socket, {}, spyWindowOpener, windowNavigator, windowLocation);
-    spyStart = spyOn(k, 'start');
-  });
+    k = new ClientKarma(socket, iframe, windowStub, windowNavigator, windowLocation)
+    clientWindow = {
+      karma: k
+    }
+    ck = new ContextKarma(ContextKarma.getDirectCallParentKarmaMethod(clientWindow))
+    ck.config = {}
+    startSpy = sinon.spy(ck, 'start')
+  })
 
-
-  it('should start execution when all files loaded and pass config', function() {
-    var config = {
+  it('should start execution when all files loaded and pass config', function () {
+    var config = ck.config = {
       useIframe: true
-    };
+    }
 
-    socket.emit('execute', config);
-    expect(spyStart).not.toHaveBeenCalled();
+    socket.emit('execute', config)
+    assert(!startSpy.called)
 
-    k.loaded();
-    expect(spyStart).toHaveBeenCalledWith(config);
-  });
+    ck.loaded()
+    assert(startSpy.calledWith(config))
+  })
 
-
-  it('should open a new window when useIFrame is false', function() {
-    var config = {
+  it('should open a new window when useIFrame is false', function () {
+    var config = ck.config = {
       useIframe: false
-    };
+    }
 
-    socket.emit('execute', config);
-    expect(spyStart).not.toHaveBeenCalled();
+    socket.emit('execute', config)
+    assert(!ck.start.called)
 
-    k.loaded();
-    expect(spyStart).toHaveBeenCalledWith(config);
-    expect(spyWindowOpener).toHaveBeenCalledWith('about:blank');
-  });
+    ck.loaded()
+    assert(startSpy.calledWith(config))
+    assert(windowStub.calledWith('context.html'))
+  })
 
+  it('should stop execution', function () {
+    sinon.spy(k, 'complete')
+    socket.emit('stop')
+    assert(k.complete.called)
+  })
 
-  it('should not start execution if any error during loading files', function() {
-    k.error('syntax error', '/some/file.js', 11);
-    k.loaded();
+  it('should not start execution if any error during loading files', function () {
+    ck.error('syntax error', '/some/file.js', 11)
+    ck.loaded()
+    sinon.spy(ck, 'start')
+    assert(!startSpy.called)
+  })
 
-    expect(spyStart).not.toHaveBeenCalled();
-  });
+  it('should remove reference to start even after syntax error', function () {
+    var ADAPTER_START_FN = function () {}
 
+    ck.start = ADAPTER_START_FN
+    ck.error('syntax error', '/some/file.js', 11)
+    ck.loaded()
+    assert.notEqual(ck.start, ADAPTER_START_FN)
 
-  it('should remove reference to start even after syntax error', function() {
-    var ADAPTER_START_FN = function() {};
+    ck.start = ADAPTER_START_FN
+    ck.loaded()
+    assert.notEqual(k.start, ADAPTER_START_FN)
+  })
 
-    k.start = ADAPTER_START_FN;
-    k.error('syntax error', '/some/file.js', 11);
-    k.loaded();
-    expect(k.start).not.toBe(ADAPTER_START_FN);
+  it('should not set up context if there was an error', function () {
+    var config = ck.config = {
+      clearContext: true
+    }
 
-    k.start = ADAPTER_START_FN;
-    k.loaded();
-    expect(k.start).not.toBe(ADAPTER_START_FN);
-  });
+    socket.emit('execute', config)
 
+    var mockWindow = {}
 
-  it('should not set up context if there was an error', function() {
-    var mockWindow = {};
+    ck.error('page reload')
+    ck.setupContext(mockWindow)
 
-    k.error('page reload');
-    k.setupContext(mockWindow);
+    assert(mockWindow.onbeforeunload == null)
+    assert(mockWindow.onerror == null)
+  })
 
-    expect(mockWindow.__karma__).toBeUndefined();
-    expect(mockWindow.onbeforeunload).toBeUndefined();
-    expect(mockWindow.onerror).toBeUndefined();
-  });
+  it('should setup context if there was error but clearContext config is false', function () {
+    var config = ck.config = {
+      clearContext: false
+    }
 
+    socket.emit('execute', config)
 
-  it('should report navigator name', function() {
-    var spyInfo = jasmine.createSpy('onInfo').andCallFake(function(info) {
-      expect(info.name).toBe('Fake browser name');
-    });
+    var mockWindow = {}
 
-    windowNavigator.userAgent = 'Fake browser name';
-    windowLocation.search = '';
-    socket.on('register', spyInfo);
-    socket.emit('connect');
+    ck.error('page reload')
+    ck.setupContext(mockWindow)
 
-    expect(spyInfo).toHaveBeenCalled();
-  });
+    assert(mockWindow.onbeforeunload != null)
+    assert(mockWindow.onerror != null)
+  })
 
+  it('should error out if a script attempted to reload the browser after setup', function () {
+    // Perform setup
+    var config = ck.config = {
+      clearContext: true
+    }
+    socket.emit('execute', config)
+    var mockWindow = {}
+    ck.setupContext(mockWindow)
 
-  it('should report browser id', function() {
-    windowLocation.search = '?id=567';
-    socket = new MockSocket();
-    k = new Karma(socket, {}, window.open, windowNavigator, windowLocation);
+    // Spy on our error handler
+    sinon.spy(k, 'error')
 
-    var spyInfo = jasmine.createSpy('onInfo').andCallFake(function(info) {
-      expect(info.id).toBe('567');
-    });
+    // Emulate an unload event
+    mockWindow.onbeforeunload()
 
-    socket.on('register', spyInfo);
-    socket.emit('connect');
+    // Assert our spy was called
+    assert(k.error.calledWith('Some of your tests did a full page reload!'))
+  })
 
-    expect(spyInfo).toHaveBeenCalled();
-  });
+  it('should report navigator name', function () {
+    var spyInfo = sinon.spy(function (info) {
+      assert(info.name === 'Fake browser name')
+    })
 
+    windowNavigator.userAgent = 'Fake browser name'
+    windowLocation.search = ''
+    socket.on('register', spyInfo)
+    socket.emit('connect')
 
-  describe('result', function() {
-    var spyResult;
+    assert(spyInfo.called)
+  })
 
-    beforeEach(function() {
-      spyResult = jasmine.createSpy('onResult');
-      socket.on('result', spyResult);
-    });
+  it('should report browser id', function () {
+    windowLocation.search = '?id=567'
+    socket = new MockSocket()
+    k = new ClientKarma(socket, {}, windowStub, windowNavigator, windowLocation)
 
+    var spyInfo = sinon.spy(function (info) {
+      assert(info.id === '567')
+    })
 
-    it('should buffer results when polling', function() {
-      setTransportTo('xhr-polling');
+    socket.on('register', spyInfo)
+    socket.emit('connect')
+
+    assert(spyInfo.called)
+  })
+
+  describe('result', function () {
+    it('should buffer results when polling', function () {
+      var spyResult = sinon.stub()
+      socket.on('result', spyResult)
+
+      setTransportTo('polling')
 
       // emit 49 results
       for (var i = 1; i < 50; i++) {
-        k.result({id: i});
+        ck.result({id: i})
       }
 
-      expect(spyResult).not.toHaveBeenCalled();
+      assert(!spyResult.called)
 
-      k.result('result', {id: 50});
-      expect(spyResult).toHaveBeenCalled();
-      expect(spyResult.argsForCall[0][0].length).toBe(50);
-    });
+      ck.result('result', {id: 50})
+      assert(spyResult.called)
+      assert(spyResult.args[0][0].length === 50)
+    })
 
+    it('should buffer results when polling', function () {
+      var spyResult = sinon.stub()
+      socket.on('result', spyResult)
 
-    it('should buffer results when polling', function() {
-      setTransportTo('xhr-polling');
+      setTransportTo('polling')
 
       // emit 40 results
       for (var i = 1; i <= 40; i++) {
-        k.result({id: i});
+        ck.result({id: i})
       }
 
-      k.complete();
-      expect(spyResult).toHaveBeenCalled();
-      expect(spyResult.argsForCall[0][0].length).toBe(40);
-    });
+      ck.complete()
+      assert(spyResult.called)
+      assert(spyResult.args[0][0].length === 40)
+    })
 
+    it('should emit "start" with total specs count first', function () {
+      var log = []
 
-    it('should emit "start" with total specs count first', function() {
-      var log = [];
-      spyResult.andCallFake(function() {
-        log.push('result');
-      });
+      socket.on('result', function () {
+        log.push('result')
+      })
 
-      socket.on('start', function() {
-        log.push('start');
-      });
+      socket.on('start', function () {
+        log.push('start')
+      })
+
+      setTransportTo('websocket')
 
       // adapter didn't call info({total: x})
-      k.result();
-      expect(log).toEqual(['start', 'result']);
-    });
+      ck.result()
+      assert.deepEqual(log, ['start', 'result'])
+    })
 
+    it('should not emit "start" if already done by the adapter', function () {
+      var log = []
 
-    it('should not emit "start" if already done by the adapter', function() {
-      var log = [];
-      var spyStart = jasmine.createSpy('onStart').andCallFake(function() {
-        log.push('start');
-      });
-      spyResult.andCallFake(function() {
-        log.push('result');
-      });
+      var spyStart = sinon.spy(function () {
+        log.push('start')
+      })
 
-      socket.on('start', spyStart);
+      var spyResult = sinon.spy(function () {
+        log.push('result')
+      })
 
-      k.info({total: 321});
-      k.result();
-      expect(log).toEqual(['start', 'result']);
-      expect(spyStart).toHaveBeenCalledWith({total: 321});
-    });
-  });
+      socket.on('result', spyResult)
+      socket.on('start', spyStart)
 
+      setTransportTo('websocket')
 
-  describe('setupContext', function() {
-    it('should capture alert', function() {
-      spyOn(k, 'log');
+      ck.info({total: 321})
+      ck.result()
+      assert.deepEqual(log, ['start', 'result'])
+      assert(spyStart.calledWith({total: 321}))
+    })
+  })
+
+  describe('setupContext', function () {
+    it('should capture alert', function () {
+      sinon.spy(ck, 'log')
 
       var mockWindow = {
-        alert: function() {
-          throw 'Alert was not patched!';
+        alert: function () {
+          throw new Error('Alert was not patched!')
         }
-      };
+      }
 
-      k.setupContext(mockWindow);
-      mockWindow.alert('What?');
-      expect(k.log).toHaveBeenCalledWith('alert', ['What?']);
+      ck.setupContext(mockWindow)
+      mockWindow.alert('What?')
+      assert(ck.log.calledWith('alert', ['What?']))
     })
-  });
+  })
 
+  describe('complete', function () {
+    var clock
 
-  describe('store', function() {
+    before(function () {
+      clock = sinon.useFakeTimers()
+    })
 
-    it('should be getter/setter', function() {
-      k.store('a', 10);
-      k.store('b', [1, 2, 3]);
+    after(function () {
+      clock.restore()
+    })
 
-      expect(k.store('a')).toBe(10);
-      expect(k.store('b')).toEqual([1, 2, 3]);
-    });
+    it('should clean the result buffer before completing', function () {
+      var spyResult = sinon.stub()
+      socket.on('result', spyResult)
 
-
-    it('should clone arrays to avoid memory leaks', function() {
-      var array = [1, 2, 3, 4, 5];
-
-      k.store('one.array', array);
-      expect(k.store('one.array')).toEqual(array);
-      expect(k.store('one.array')).not.toBe(array);
-    });
-  });
-
-
-  describe('complete', function() {
-
-    beforeEach(function() {
-      spyOn(window, 'setTimeout').andCallFake(function(fn) {
-        fn();
-      });
-    });
-
-
-    it('should clean the result buffer before completing', function() {
-      var spyResult = jasmine.createSpy('onResult');
-      socket.on('result', spyResult);
-
-      setTransportTo('xhr-polling');
+      setTransportTo('polling')
 
       // emit 40 results
       for (var i = 0; i < 40; i++) {
-        k.result({id: i});
+        ck.result({id: i})
       }
 
-      expect(spyResult).not.toHaveBeenCalled();
+      assert(!spyResult.called)
 
-      k.complete();
-      expect(spyResult).toHaveBeenCalled();
-    });
+      ck.complete()
+      assert(spyResult.called)
+    })
 
+    it('should navigate the client to return_url if specified', function (done) {
+      windowLocation.search = '?id=567&return_url=http://return.com'
+      socket = new MockSocket()
+      k = new ClientKarma(socket, {}, windowStub, windowNavigator, windowLocation)
+      clientWindow = {karma: k}
+      ck = new ContextKarma(ContextKarma.getDirectCallParentKarmaMethod(clientWindow))
+      ck.config = {}
 
-    it('should navigate the client to return_url if specified', function() {
-      windowLocation.search = '?id=567&return_url=http://return.com';
-      socket = new MockSocket();
-      k = new Karma(socket, {}, window.open, windowNavigator, windowLocation);
+      sinon.spy(socket, 'disconnect')
 
-      spyOn(socket, 'disconnect');
+      socket.on('complete', function (data, ack) {
+        ack()
+      })
 
-      socket.on('complete', function(data, ack) {
-        ack();
-      });
+      ck.complete()
 
-      k.complete();
+      clock.tick(500)
+      setTimeout(function () {
+        assert(windowLocation.href === 'http://return.com')
+        done()
+      }, 5)
+      clock.tick(10)
+    })
 
-      waitsFor(function(){
-        return windowLocation.href === 'http://return.com';
-      }, '', 9000);
-    });
-
-    it('should patch the console if captureConsole is true', function() {
-      spyOn(k, 'log');
-      k.config.captureConsole = true;
-
-      var mockWindow = {
-        console: {
-          log: function () {}
-        }
-      };
-
-      k.setupContext(mockWindow);
-      mockWindow.console.log('What?');
-      expect(k.log).toHaveBeenCalledWith('log', ['What?']);
-    });
-
-    it('should not patch the console if captureConsole is false', function() {
-      spyOn(k, 'log');
-      k.config.captureConsole = false;
+    it('should patch the console if captureConsole is true', function () {
+      sinon.spy(ck, 'log')
+      ck.config.captureConsole = true
 
       var mockWindow = {
         console: {
           log: function () {}
         }
-      };
+      }
 
-      k.setupContext(mockWindow);
-      mockWindow.console.log('hello');
-      expect(k.log).not.toHaveBeenCalled();
-    });
-  });
-});
+      ck.setupContext(mockWindow)
+      mockWindow.console.log('What?')
+      assert(ck.log.calledWith('log'))
+      assert(ck.log.args[0][1][0] === 'What?')
+    })
+
+    it('should not patch the console if captureConsole is false', function () {
+      sinon.spy(ck, 'log')
+      ck.config.captureConsole = false
+
+      var mockWindow = {
+        console: {
+          log: function () {}
+        }
+      }
+
+      ck.setupContext(mockWindow)
+      mockWindow.console.log('hello')
+      assert(!ck.log.called)
+    })
+
+    it('should clear context window upon complete when clearContext config is true', function () {
+      var config = ck.config = {
+        clearContext: true
+      }
+
+      socket.emit('execute', config)
+      var CURRENT_URL = iframe.src
+
+      ck.complete()
+
+      // clock.tick() does not work in IE 7
+      setTimeout(function () {
+        clock.tick(1)
+        assert.notEqual(iframe.src, CURRENT_URL)
+      }, 10)
+    })
+
+    it('should not clear context window upon complete when clearContext config is false', function () {
+      var config = ck.config = {
+        clearContext: false
+      }
+
+      socket.emit('execute', config)
+      var CURRENT_URL = iframe.src
+
+      ck.complete()
+
+      clock.tick(1)
+
+      assert.equal(iframe.src, CURRENT_URL)
+    })
+  })
+})

@@ -39,14 +39,14 @@ $ karma init
 This will give you a series of prompts for things such as paths to the source and test
 files as well as which browsers to capture.
 
-In this example we'll use Jasmine, but other test frameworks works just
+In this example we'll use Jasmine, but other test frameworks work just
 as well.
 
 Choose "yes" for Require.js.
 
 For the question *"Which files do you want to include with &lt;script&gt;
 tag?"*, we need to choose all files which are *not* loaded by Require.js.
-Usually you'll only need to include your `test-main.js` file, which has
+Usually, you'll only need to include your `test-main.js` file, which has
 the same role for your tests as `main.js` has for your app when using
 Require.js.
 
@@ -84,10 +84,38 @@ module.exports = function(config) {
 };
 ```
 
+The files property contains every file you want to be available to the
+Karma runner. By default a script tag will be created for the files,
+unless you use the `included: false` option.
+
+If you want a script tag to be added before requirejs (to load an amd 
+compatible script before requirejs) then you must add the requirejs
+and adapter script to the files list and remove requirejs from the
+frameworks list. This allows you to control the order. For instance
+to load `knockout.js` before requirejs...
+
+```
+  config.set({
+    frameworks: ['jasmine'],
+
+    files: [
+      'knockout.js',
+
+      'node_modules/requirejs/require.js',
+      'node_modules/karma-requirejs/lib/adapter.js',
+
+      {pattern: 'lib/**/*.js', included: false},
+      {pattern: 'src/**/*.js', included: false},
+      {pattern: 'test/**/*Spec.js', included: false},
+
+      'test/test-main.js'
+    ],
+```
+
 ## Configuring Require.js
 
 Just like any Require.js project, you need a main module to bootstrap
-your tests. We do this is `test/test-main.js`.
+your tests. We do this in `test/test-main.js`.
 
 ### Karma `/base` Directory
 
@@ -97,7 +125,7 @@ requests to files will be served up under
 
 The Require.js config for `baseUrl` gives a starting context for modules
 that load with relative paths. When setting this value for the Karma
-server it will need to start with `/base`. We want the `baseUrl` for our
+server, it will need to start with `/base`. We want the `baseUrl` for our
 tests to be the same folder as the base url we have in `src/main.js`, so
 that relative requires in the source won’t need to change. So, as we
 want our base url to be at `src/`, we need to write `/base/src`.
@@ -114,17 +142,17 @@ asynchronously as dependencies must be fetched before the tests are run.
 The `test/test-main.js` file ends up looking like this:
 
 ```javascript
+var TEST_REGEXP = /(spec|test)\.js$/i;
 var allTestFiles = [];
-var TEST_REGEXP = /test\.js$/;
 
-var pathToModule = function(path) {
-  return path.replace(/^\/base\//, '').replace(/\.js$/, '');
-};
-
+// Get a list of all the test files to include
 Object.keys(window.__karma__.files).forEach(function(file) {
   if (TEST_REGEXP.test(file)) {
     // Normalize paths to RequireJS module names.
-    allTestFiles.push(pathToModule(file));
+    // If you require sub-dependencies of test files to be loaded as-is (requiring file extension)
+    // then do not normalize the paths
+    var normalizedTestModule = file.replace(/^\/base\/|\.js$/g, '');
+    allTestFiles.push(normalizedTestModule);
   }
 });
 
@@ -132,12 +160,13 @@ require.config({
   // Karma serves files under /base, which is the basePath from your config file
   baseUrl: '/base/src',
 
-  // example of using shim, to load non AMD libraries (such as underscore and jquery)
+  // example of using a couple of path translations (paths), to allow us to refer to different library dependencies, without using relative paths
   paths: {
     'jquery': '../lib/jquery',
     'underscore': '../lib/underscore',
   },
 
+  // example of using a shim, to load non AMD libraries (such as underscore)
   shim: {
     'underscore': {
       exports: '_'
@@ -159,9 +188,11 @@ everything in `define`, and inside we can use the regular test methods,
 such as `describe` and `it`. Example:
 
 ```javascript
-define(['app', 'jquery', 'underscore'], function(App, $, _) {
+define(['app', 'jquery', 'underscore', './test-helper'], function(App, $, _, testHelper) {
 
     describe('just checking', function() {
+    
+        testHelper.setup();
 
         it('works for app', function() {
             var el = $('<div></div>');

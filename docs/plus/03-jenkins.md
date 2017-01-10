@@ -14,7 +14,7 @@ You need the following tools installed on your Jenkins CI server:
 * Node
 * Karma
 
-Optional we highly suggest to install the following Jenkins plug-in:
+The following Jenkins plugin is optional, but the next guidelines are based on it:
 * [EnvInject] - it makes things easier under certain linux distributions and user permissions.
 
 ## Configure Karma
@@ -29,8 +29,9 @@ junitReporter: {
 },
  ```
 
-Please note the `test-result.xml` file will be written to the present
-working directory (and you will need to tell Jenkins where to find it).
+Please note the `test-results.xml` files will be written to subdirectories
+named after the browsers the tests were run in inside the present working
+directory (and you will need to tell Jenkins where to find them).
 
 ## Create a new Jenkins Job
 In Jenkins, start a new job for Angular/Karma with the basic
@@ -51,8 +52,10 @@ $ PHANTOMJS_BIN=/usr/local/bin/phantomjs #or wherever PhantomJS happens to be in
 Further down the page, in the Post-build Actions sub-section add a
 `Publish JUnit test result report` from the Post-build action drop
 down menu. When the textbox labeled Test report XMLs appears, enter
-the path to where the `test-results.xml` is relative to the root of
-your Jenkins job workspace.
+the path to where the `test-results.xml` files are relative to the root of your
+Jenkins job workspace (you can use wildcards for this, so `**/test-results.xml`
+will find the file even if it was stored inside a browser-specific
+subdirectory).
 
 
 

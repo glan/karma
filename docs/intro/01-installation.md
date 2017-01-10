@@ -2,11 +2,10 @@ Karma runs on [Node.js] and is available as an [NPM] package.
 
 ## Installing Node.js
 
-There are [installers](http://nodejs.org/download/) for both Mac and Windows.
-On Linux, we recommend using [NVM](https://github.com/creationix/nvm).
+On Mac or Linux we recommend using [NVM](https://github.com/creationix/nvm). On Windows, download Node.js
+from [the official site](https://nodejs.org/) or use the [NVM PowerShell Module](https://www.powershellgallery.com/packages/nvm).
 
-Note: Karma works on the two latest stable versions. That is **0.8.x** and **0.10.x** at this point.
-
+Note: Karma currently works on Node.js **0.10**, **0.12.x**, **4.x**, **5.x**, and **6.x**. See [FAQ] for more info.
 
 ## Installing Karma and plugins
 
@@ -18,11 +17,11 @@ the project's directory.
 $ npm install karma --save-dev
 
 # Install plugins that your project needs:
-$ npm install karma-jasmine karma-chrome-launcher --save-dev
+$ npm install karma-jasmine karma-chrome-launcher jasmine-core --save-dev
 
 ```
 
-This will install `karma`, `karma-jasmine` and `karma-chrome-launcher` packages into `node_modules` in your current
+This will install `karma`, `karma-jasmine`, `karma-chrome-launcher` and `jasmine-core` packages into `node_modules` in your current
 working directory and also save these as `devDependencies` in `package.json`, so that any
 other developer working on the project will only have to do `npm install` in order to get all these
 dependencies installed.
@@ -33,7 +32,7 @@ $ ./node_modules/karma/bin/karma start
 ```
 
 ## Commandline Interface
-Typing `./node_modules/karma/bin/karma start` sucks and so you might find it useful to install `karma-cli` globally.
+Typing `./node_modules/karma/bin/karma start` sucks and so you might find it useful to install `karma-cli` globally. You will need to do this if you want to run Karma on Windows from the command line.
 
 ```bash
 $ npm install -g karma-cli
@@ -45,3 +44,4 @@ Then, you can run Karma simply by `karma` from anywhere and it will always run t
 [Node.js]: http://nodejs.org/
 [NPM]: https://npmjs.org/package/karma
 [NVM]: https://github.com/creationix/nvm
+[FAQ]: ./faq.html

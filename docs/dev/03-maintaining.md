@@ -32,32 +32,17 @@ Please, make sure:
     - e.g. if the first commit is `fix(web-server): serve binary files` and a second commit is “fix unit tests broken in the previous commit”, you should squash them into a single commit.
   - It’s alright to ask the author of the pull request to fix any of the above.
 
-### There are two branches:
-- **master** is what gets automatically released into the "stable" channel (`npm install karma`).
-- **canary** is what gets automatically released into the "canary" channel (`npm install karma@canary`)
-
-If the PR is a bug fix or documentation change that is relevant to the current stable release (branch "master"), merge the PR into master.
-You can use the “green button” on GitHub.
-
-**No new features or breaking changes can go into the master branch.**
-
-Features or breaking changes should be merged into "canary" branch.
-So do bug fixes or documentation fixes that are only related to the canary release.
-
-An easy way to merge a pull request is to use the [fetch_pr] and [merge_pr] scripts.
-
-
 ## Ownership
 Every project has one or more owners (or “maintainers”), listed in `owners` field of the
 `package.json`. Typically, owners have push permissions.
 
 Being a maintainer of one plugin doesn’t mean you can’t contribute to some other plugins.
 In fact, you can be a maintainer of multiple projects. The main point is to have people who are
-familiar with the codebase and therefore can better decide what is a good change or not.
+familiar with the codebase and therefore can better decide what a good change is or not.
 
 
 ## Becoming a maintainer
-If you are interest in becoming a Karma maintainer, start by triaging issues, reviewing pull
+If you are interested in becoming a Karma maintainer, start by triaging issues, reviewing pull
 requests and stop by at [gitter/karma-runner]. Once we see you are helping, we will give you push
 permissions. Being a maintainer is not an obligation. You can help when you have time and be less
 active when you don’t. If you get a new job and get busy, that’s alright.
@@ -67,7 +52,7 @@ Nothing is set in a stone. If you feel like there is a way to improve this workf
 please send a proposal to [karma-devs@googlegroups.com](mailto:karma-devs@googlegroups.com).
 
 [gitter/karma-runner]: https://gitter.im/karma-runner
-[convention]: http://karma-runner.github.io/0.12/dev/git-commit-msg.html
+[convention]: http://karma-runner.github.io/latest/dev/git-commit-msg.html
 [fetch_pr]: https://github.com/vojtajina/dotfiles/blob/master/bin/fetch_pr
 [merge_pr]: https://github.com/vojtajina/dotfiles/blob/master/bin/merge_pr
 [Contributing to Karma]: ./contributing.html

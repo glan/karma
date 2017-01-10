@@ -1,74 +1,96 @@
-var stringify = require('../../client/stringify');
+/* global __karma__ */
+var assert = require('assert')
 
+var stringify = require('../../common/stringify')
 
-describe('stringify', function() {
-  it('should serialize string', function() {
-    expect(stringify('aaa')).toBe("'aaa'");
-  });
+describe('stringify', function () {
+  it('should serialize string', function () {
+    assert.deepEqual(stringify('aaa'), "'aaa'")
+  })
 
+  it('should serialize booleans', function () {
+    assert.deepEqual(stringify(true), 'true')
+    assert.deepEqual(stringify(false), 'false')
+  })
 
-  it('should serialize booleans', function() {
-    expect(stringify(true)).toBe('true');
-    expect(stringify(false)).toBe('false');
-  });
+  it('should serialize null and undefined', function () {
+    assert.deepEqual(stringify(null), 'null')
+    assert.deepEqual(stringify(), 'undefined')
+  })
 
+  it('should serialize functions', function () {
+    function abc (a, b, c) { return 'whatever' }
+    var def = function (d, e, f) { return 'whatever' }
 
-  it('should serialize null and undefined', function() {
-    expect(stringify(null)).toBe('null');
-    expect(stringify()).toBe('undefined');
-  });
+    var abcString = stringify(abc)
+    var partsAbc = ['function', 'abc', '(a, b, c)', '{ ... }']
+    var partsDef = ['function', '(d, e, f)', '{ ... }']
 
+    partsAbc.forEach(function (part) {
+      assert(abcString.indexOf(part) > -1)
+    })
 
-  it('should serialize functions', function() {
-    function abc(a, b, c) { return 'whatever'; }
-    var def = function(d, e, f) { return 'whatever'; };
+    var defString = stringify(def)
+    partsDef.forEach(function (part) {
+      assert(defString.indexOf(part) > -1)
+    })
+  })
 
-    expect(stringify(abc)).toBe('function abc(a, b, c) { ... }');
-    expect(stringify(def)).toBe('function (d, e, f) { ... }');
-  });
-
-
-  it('should serialize arrays', function() {
-    expect(stringify(['a', 'b', null, true, false])).toBe("['a', 'b', null, true, false]");
-  });
+  it('should serialize arrays', function () {
+    assert.deepEqual(stringify(['a', 'b', null, true, false]), "['a', 'b', null, true, false]")
+  })
 
   it('should serialize objects', function () {
-    var obj;
+    var obj
 
+    obj = {a: 'a', b: 'b', c: null, d: true, e: false}
+    assert(stringify(obj).indexOf("{a: 'a', b: 'b', c: null, d: true, e: false}") > -1)
 
-    obj = {a: 'a', b: 'b', c: null, d: true, e: false};
-    expect(stringify(obj)).toBe('Object{a: \'a\', b: \'b\', c: null, d: true, e: false}');
-
-    function MyObj() {
-      this.a = 'a';
+    function MyObj () {
+      this.a = 'a'
     }
 
-    obj = new MyObj();
-    expect(stringify(obj)).toBe('MyObj{a: \'a\'}');
+    obj = new MyObj()
+    assert(stringify(obj).indexOf("{a: 'a'}") > -1)
 
-    obj = {constructor: null};
-    expect(stringify(obj)).toBe('Object{constructor: null}');
+    obj = {constructor: null}
 
-    obj = Object.create(null);
-    obj.a = 'a';
-    expect(stringify(obj)).toBe('Object{a: \'a\'}');
-  });
+    // IE 7 serializes this to Object{}
+    var s = stringify(obj)
+    assert(s.indexOf('{constructor: null}') > -1 || s.indexOf('Object{}') > -1)
 
+    obj = Object.create(null)
+    obj.a = 'a'
 
-  it('should serialize html', function() {
-    var div = document.createElement('div');
+    assert(stringify(obj).indexOf("{a: 'a'}") > -1)
+  })
 
-    expect(stringify(div)).toBe('<div></div>');
+  it('should serialize html', function () {
+    var div = document.createElement('div')
 
-    div.innerHTML = 'some <span>text</span>';
-    expect(stringify(div)).toBe('<div>some <span>text</span></div>');
-  });
+    assert.deepEqual(stringify(div).trim().toLowerCase(), '<div></div>')
 
+    div.innerHTML = 'some <span>text</span>'
+    assert.deepEqual(stringify(div).trim().toLowerCase(), '<div>some <span>text</span></div>')
+  })
 
-  it('should serialize across iframes', function() {
-    var div = document.createElement('div');
-    expect(__karma__.stringify(div)).toBe('<div></div>');
+  it('should serialize DOMParser objects', function () {
+    if (typeof DOMParser !== 'undefined') {
+      // Test only works in IE 9 and above
+      var parser = new DOMParser()
+      var doc = parser.parseFromString('<test></test>', 'application/xml')
+      assert.deepEqual(stringify(doc), '<test></test>')
+    }
+  })
 
-    expect(__karma__.stringify([1, 2])).toBe('[1, 2]');
-  });
-});
+  it('should serialize across iframes', function () {
+    var div = document.createElement('div')
+    assert.deepEqual(__karma__.stringify(div).trim().toLowerCase(), '<div></div>')
+
+    assert.deepEqual(__karma__.stringify([1, 2]), '[1, 2]')
+  })
+
+  it('should stringify object with property tagName as Object', function () {
+    assert(stringify({tagName: 'a'}).indexOf("{tagName: 'a'}") > -1)
+  })
+})

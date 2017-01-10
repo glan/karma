@@ -1,24 +1,94 @@
-module.exports = function(config) {
+var TRAVIS_WITHOUT_BS = process.env.TRAVIS_SECURE_ENV_VARS === 'false'
+
+var launchers = {
+  bs_chrome: {
+    base: 'BrowserStack',
+    browser: 'chrome',
+    os: 'Windows',
+    os_version: '10'
+  },
+  bs_firefox: {
+    base: 'BrowserStack',
+    browser: 'firefox',
+    os: 'Windows',
+    os_version: '10'
+  },
+  bs_safari: {
+    base: 'BrowserStack',
+    browser: 'safari',
+    browser_version: '9.0',
+    os_version: 'El Capitan',
+    os: 'OS X'
+  },
+  bs_ie_11: {
+    base: 'BrowserStack',
+    browser: 'ie',
+    browser_version: '11.0',
+    os: 'Windows',
+    os_version: '10'
+  },
+  bs_ie_10: {
+    base: 'BrowserStack',
+    browser: 'ie',
+    browser_version: '10.0',
+    os: 'Windows',
+    os_version: '8'
+  },
+  bs_ie_9: {
+    base: 'BrowserStack',
+    browser: 'ie',
+    browser_version: '9.0',
+    os: 'Windows',
+    os_version: '7'
+  }
+  // TODO: Figure out why these fail on browserstack
+  // ,
+  // bs_ie_8: {
+  //   base: 'BrowserStack',
+  //   browser: 'ie',
+  //   browser_version: '8.0',
+  //   os: 'Windows',
+  //   os_version: '7'
+  // },
+  // bs_ie_7: {
+  //   base: 'BrowserStack',
+  //   browser: 'ie',
+  //   browser_version: '7.0',
+  //   os: 'Windows',
+  //   os_version: 'XP'
+  // }
+}
+
+var browsers = []
+
+if (process.env.TRAVIS) {
+  if (TRAVIS_WITHOUT_BS) {
+    browsers.push('Firefox')
+  } else {
+    browsers = Object.keys(launchers)
+  }
+} else {
+  browsers.push('Chrome')
+}
+
+module.exports = function (config) {
   config.set({
     // base path, that will be used to resolve files and exclude
     basePath: '../..',
 
-    frameworks: ['jasmine', 'commonjs'],
+    frameworks: ['browserify', 'mocha'],
 
     // list of files / patterns to load in the browser
     files: [
-      'client/*.js',
       'test/client/*.js'
     ],
 
     // list of files to exclude
     exclude: [
-      'client/main.js'
     ],
 
     preprocessors: {
-      'client/*.js': ['commonjs'],
-      'test/client/*.js': ['commonjs']
+      'test/client/*.js': ['browserify']
     },
 
     // use dots reporter, as travis terminal does not support escaping sequences
@@ -57,11 +127,13 @@ module.exports = function(config) {
     // - PhantomJS
     // - IE (only Windows)
     // CLI --browsers Chrome,Firefox,Safari
-    browsers: [process.env.TRAVIS ? 'Firefox' : 'Chrome'],
+    browsers: browsers,
+
+    customLaunchers: launchers,
 
     // If browser does not capture in given timeout [ms], kill it
     // CLI --capture-timeout 5000
-    captureTimeout: 20000,
+    captureTimeout: 50000,
 
     // Auto run tests on start (when browsers are captured) and exit
     // CLI --single-run --no-single-run
@@ -72,11 +144,22 @@ module.exports = function(config) {
     reportSlowerThan: 500,
 
     plugins: [
-      'karma-jasmine',
+      'karma-mocha',
       'karma-chrome-launcher',
       'karma-firefox-launcher',
       'karma-junit-reporter',
-      'karma-commonjs'
-    ]
-  });
-};
+      'karma-browserify',
+      'karma-browserstack-launcher'
+    ],
+
+    concurrency: 3,
+
+    forceJSONP: true,
+
+    jsVersion: 0,
+
+    browserStack: {
+      project: 'Karma'
+    }
+  })
+}
